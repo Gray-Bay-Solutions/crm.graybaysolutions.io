@@ -1,63 +1,58 @@
 <div
-    ref="sidebar"
-    class="duration-80 fixed top-[60px] z-[10002] h-full w-[200px] border-gray-200 bg-white pt-4 transition-all group-[.sidebar-collapsed]/container:w-[70px] dark:border-gray-800 dark:bg-gray-900 max-lg:hidden ltr:border-r rtl:border-l"
-    @mouseover="handleMouseOver"
-    @mouseleave="handleMouseLeave"
+    class="fixed top-[60px] bottom-0 w-[250px] border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 overflow-y-auto"
 >
-    <div class="journal-scroll h-[calc(100vh-100px)] overflow-hidden group-[.sidebar-collapsed]/container:overflow-visible">
-        <nav class="sidebar-rounded grid w-full gap-2">
-            <!-- Navigation Menu -->
+    <nav class="w-full">
+        <!-- Navigation Menu -->
+        <div class="p-4 space-y-2">
             @foreach (menu()->getItems('admin') as $menuItem)
-                <div class="px-4 group/item {{ $menuItem->isActive() ? 'active' : 'inactive' }}">
+                <div class="group/item {{ $menuItem->isActive() ? 'active' : 'inactive' }}">
                     <a
-                        class="flex gap-2 p-1.5 items-center cursor-pointer hover:rounded-lg {{ $menuItem->isActive() == 'active' ? 'bg-brandColor rounded-lg' : ' hover:bg-gray-100 hover:dark:bg-gray-950' }} peer"
+                        class="flex gap-2 p-2.5 items-center cursor-pointer rounded-lg {{ $menuItem->isActive() == 'active' ? 'bg-brandColor text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 hover:dark:bg-gray-950' }}"
                         href="{{ ! in_array($menuItem->getKey(), ['settings', 'configuration']) && $menuItem->haveChildren() ? 'javascript:void(0)' : $menuItem->getUrl() }}"
-                        @mouseleave="!isMenuActive ? hoveringMenu = '' : {}"
-                        @mouseover="hoveringMenu='{{$menuItem->getKey()}}'"
-                        @click="isMenuActive = !isMenuActive"
                     >
-                        <span class="{{ $menuItem->getIcon() }} text-2xl {{ $menuItem->isActive() ? 'text-white' : ''}}"></span>
+                        <span class="{{ $menuItem->getIcon() }} text-2xl"></span>
 
-                        <div class="flex-1 flex justify-between items-center text-gray-600 dark:text-gray-300 font-medium whitespace-nowrap group-[.sidebar-collapsed]/container:hidden {{ $menuItem->isActive() ? 'text-white' : ''}} group">
+                        <div class="flex-1 flex justify-between items-center font-medium">
                             <p>{{ core()->getConfigData('general.settings.menu.'.$menuItem->getKey()) ?? $menuItem->getName() }}</p>
-                        
-                            @if ( ! in_array($menuItem->getKey(), ['settings', 'configuration']) && $menuItem->haveChildren())
-                                <i class="icon-right-arrow rtl:icon-left-arrow invisible text-2xl group-hover/item:visible {{ $menuItem->isActive() ? 'text-white' : ''}}"></i>
-                            @endif
                         </div>
                     </a>
 
-                    <!-- Submenu -->
+                    <!-- Static Submenu Drawer -->
                     @if (
                         ! in_array($menuItem->getKey(), ['settings', 'configuration'])
                         && $menuItem->haveChildren()
                     )
-                        <div
-                            class="absolute top-0 hidden flex-col bg-gray-100 ltr:left-[200px] rtl:right-[199px]"
-                            :class="[isMenuActive && (hoveringMenu == '{{$menuItem->getKey()}}') ? '!flex' : 'hidden']"
-                        >
-                            <div class="sidebar-rounded fixed z-[1000] h-full min-w-[140px] max-w-max bg-white pt-4 after:-right-[30px] dark:border-gray-800 dark:bg-gray-900 max-lg:hidden ltr:border-r rtl:border-x">
-                                <div class="journal-scroll h-[calc(100vh-100px)] overflow-hidden">
-                                    <nav class="grid w-full gap-2">
-                                        @foreach ($menuItem->getChildren() as $subMenuItem)
-                                            <div class="px-4 group/item {{ $menuItem->isActive() ? 'active' : 'inactive' }}">
-                                                <a
-                                                    href="{{ $subMenuItem->getUrl() }}"
-                                                    class="flex gap-2.5 p-2 items-center cursor-pointer hover:rounded-lg {{ $subMenuItem->isActive() == 'active' ? 'bg-brandColor rounded-lg' : ' hover:bg-gray-100 hover:dark:bg-gray-950' }} peer"
-                                                >
-                                                    <p class="text-gray-600 dark:text-gray-300 font-medium whitespace-nowrap {{ $subMenuItem->isActive() ? 'text-white' : ''}}">
-                                                        {{ core()->getConfigData('general.settings.menu.'.$subMenuItem->getKey()) ?? $subMenuItem->getName() }}
-                                                    </p>
-                                                </a>
-                                            </div>
-                                        @endforeach
-                                    </nav>
-                                </div>
-                            </div>
+                        <div class="mt-1 pl-4 border-l-2 border-gray-200 ml-3 {{ $menuItem->isActive() ? 'border-brandColor' : '' }}">
+                            @foreach ($menuItem->getChildren() as $subMenuItem)
+                                <a
+                                    href="{{ $subMenuItem->getUrl() }}"
+                                    class="block py-2 px-4 text-sm rounded-lg {{ $subMenuItem->isActive() ? 'text-brandColor bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' }}"
+                                >
+                                    {{ core()->getConfigData('general.settings.menu.'.$subMenuItem->getKey()) ?? $subMenuItem->getName() }}
+                                </a>
+                            @endforeach
                         </div>
                     @endif
                 </div>
             @endforeach
-        </nav>
-    </div>
+        </div>
+    </nav>
 </div>
+
+@pushOnce('scripts')
+<script type="text/x-template" id="sidebar-template">
+    export default {
+        data() {
+            return {
+                activeSubmenu: null
+            }
+        },
+
+        methods: {
+            toggleSubmenu(menuKey) {
+                this.activeSubmenu = this.activeSubmenu === menuKey ? null : menuKey;
+            }
+        }
+    }
+</script>
+@endPushOnce
