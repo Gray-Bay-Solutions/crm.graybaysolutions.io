@@ -28,6 +28,9 @@
                 @include('admin::leads.index.upload')
             @endif
 
+            <!-- Bulk Upload Leads -->
+            @include('admin::leads.index.bulk-upload')
+
             @if ((request()->view_type ?? "kanban") == "table")
                 <!-- Export Modal -->
                 <x-admin::datagrid.export :src="route('admin.leads.index')" />

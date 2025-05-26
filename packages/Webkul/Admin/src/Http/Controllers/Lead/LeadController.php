@@ -9,6 +9,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
@@ -17,8 +18,10 @@ use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\LeadResource;
 use Webkul\Admin\Http\Resources\StageResource;
+use Webkul\Admin\Imports\LeadsImport;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Contact\Repositories\OrganizationRepository;
 use Webkul\Lead\Helpers\MagicAI;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
@@ -38,6 +41,11 @@ class LeadController extends Controller
     const SUPPORTED_TYPES = 'pdf,bmp,jpeg,jpg,png,webp';
 
     /**
+     * Property to store skipped duplicates during bulk upload.
+     */
+    protected $skippedDuplicates = [];
+
+    /**
      * Create a new controller instance.
      *
      * @return void
@@ -51,7 +59,8 @@ class LeadController extends Controller
         protected StageRepository $stageRepository,
         protected LeadRepository $leadRepository,
         protected ProductRepository $productRepository,
-        protected PersonRepository $personRepository
+        protected PersonRepository $personRepository,
+        protected OrganizationRepository $organizationRepository
     ) {
         request()->request->add(['entity_type' => 'leads']);
     }
@@ -651,6 +660,77 @@ class LeadController extends Controller
     }
 
     /**
+     * Bulk upload leads from Excel/CSV file.
+     */
+    public function bulkUpload()
+    {
+        // Ensure entity_type is set globally for this request
+        request()->request->add(['entity_type' => 'leads']);
+        
+        $this->validate(request(), [
+            'file' => 'required|file|mimes:xlsx,csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain|max:10240',
+        ]);
+
+        try {
+            $file = request()->file('file');
+            
+            // Additional file extension check
+            $allowedExtensions = ['xlsx', 'xls', 'csv'];
+            $fileExtension = strtolower($file->getClientOriginalExtension());
+            
+            if (!in_array($fileExtension, $allowedExtensions)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Excel (.xlsx, .xls) and CSV files are allowed.',
+                ], 400);
+            }
+            
+            $leads = $this->processExcelFile($file);
+            
+            if (empty($leads)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No valid lead data found in the file. Please check that your file has the required columns: phone, first_name, last_name, company, email, industry_category',
+                ], 400);
+            }
+            
+            // Get address data from request
+            $addressData = [
+                'country' => request()->input('country', ''),
+                'state' => request()->input('state', ''),
+            ];
+            
+            $result = $this->createBulkLeads($leads, $addressData);
+
+            $message = trans('admin::app.leads.create-success') . ' (' . $result['created_count'] . ' leads imported)';
+            
+            if ($result['duplicate_count'] > 0) {
+                $message .= '. ' . $result['duplicate_count'] . ' duplicate(s) skipped.';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'leads'   => $result['leads'],
+                'duplicate_count' => $result['duplicate_count'],
+                'error_count' => $result['error_count'],
+                'total_processed' => $result['total_processed'],
+                'duplicate_details' => $result['duplicate_details'],
+                'error_details' => $result['error_details']
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Bulk upload error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
      * Process file.
      *
      * @param  mixed  $file
@@ -712,5 +792,241 @@ class LeadController extends Controller
         }
 
         return $leads;
+    }
+
+    /**
+     * Process Excel/CSV file and extract lead data.
+     */
+    private function processExcelFile($file): array
+    {
+        try {
+            $import = new LeadsImport();
+            Excel::import($import, $file);
+            
+            return $import->getLeads();
+        } catch (\Exception $e) {
+            throw new \Exception('Error processing file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create multiple leads from bulk upload.
+     */
+    private function createBulkLeads($rawLeads, $addressData): array
+    {
+        $leads = [];
+        $skippedDuplicates = [];
+        $skippedErrors = [];
+        
+        // Get required default data with safety checks
+        $defaultSource = $this->sourceRepository->first();
+        $defaultType = $this->typeRepository->first();
+        $pipeline = $this->pipelineRepository->getDefaultPipeline();
+        $stage = $pipeline ? $pipeline->stages()->first() : null;
+
+        // Safety checks for required data
+        if (!$defaultSource) {
+            throw new \Exception('No lead source found. Please create at least one lead source.');
+        }
+        if (!$defaultType) {
+            throw new \Exception('No lead type found. Please create at least one lead type.');
+        }
+        if (!$pipeline) {
+            throw new \Exception('No pipeline found. Please create at least one pipeline.');
+        }
+        if (!$stage) {
+            throw new \Exception('No pipeline stage found. Please create at least one stage in the pipeline.');
+        }
+
+        foreach ($rawLeads as $index => $rawLead) {
+            try {
+                // Validate required data
+                if (empty($rawLead['person']['name']) && empty($rawLead['title'])) {
+                    $skippedErrors[] = [
+                        'row' => $index + 1,
+                        'name' => 'Unknown',
+                        'reason' => 'Missing required name/title data'
+                    ];
+                    continue;
+                }
+
+                // Check for duplicates based on email and phone
+                $isDuplicate = false;
+                $duplicateReason = '';
+                $existingPerson = null;
+                
+                // Check email duplicate first
+                if (!empty($rawLead['person']['emails'][0]['value'])) {
+                    $existingPerson = $this->personRepository
+                        ->whereJsonContains('emails', [['value' => $rawLead['person']['emails'][0]['value']]])
+                        ->first();
+                    
+                    if ($existingPerson) {
+                        $isDuplicate = true;
+                        $duplicateReason = 'email: ' . $rawLead['person']['emails'][0]['value'];
+                    }
+                }
+                
+                // Check phone duplicate if no email duplicate found
+                if (!$isDuplicate && !empty($rawLead['person']['contact_numbers'][0]['value'])) {
+                    $existingPerson = $this->personRepository
+                        ->whereJsonContains('contact_numbers', [['value' => $rawLead['person']['contact_numbers'][0]['value']]])
+                        ->first();
+                    
+                    if ($existingPerson) {
+                        $isDuplicate = true;
+                        $duplicateReason = 'phone: ' . $rawLead['person']['contact_numbers'][0]['value'];
+                    }
+                }
+                
+                // Skip if duplicate found
+                if ($isDuplicate) {
+                    $skippedDuplicates[] = [
+                        'row' => $index + 1,
+                        'name' => $rawLead['person']['name'],
+                        'reason' => $duplicateReason
+                    ];
+                    continue;
+                }
+
+                // Create or find organization first
+                $organizationId = null;
+                if (!empty($rawLead['person']['organization']['name'])) {
+                    $organizationId = $this->createOrFindOrganization(
+                        $rawLead['person']['organization']['name'], 
+                        $addressData
+                    );
+                }
+
+                // Prepare lead data with proper entity_type and structure
+                $leadData = [
+                    'title' => $rawLead['title'],
+                    'description' => $rawLead['description'],
+                    'lead_value' => $rawLead['lead_value'],
+                    'user_id' => null, // No sales owner assigned
+                    'entity_type' => 'leads',
+                    'lead_source_id' => $defaultSource->id,
+                    'lead_type_id' => $defaultType->id,
+                    'lead_pipeline_id' => $pipeline->id,
+                    'lead_pipeline_stage_id' => $stage->id,
+                    'person' => [
+                        'name' => $rawLead['person']['name'],
+                        'emails' => $rawLead['person']['emails'],
+                        'contact_numbers' => $rawLead['person']['contact_numbers'],
+                        'organization_id' => $organizationId, // Set organization_id directly
+                        'organization' => $organizationId ? ['id' => $organizationId] : null,
+                    ]
+                ];
+
+                // Set entity_type in request for this specific creation
+                request()->merge(['entity_type' => 'leads']);
+
+                Event::dispatch('lead.create.before');
+
+                // Create the lead
+                $lead = $this->leadRepository->create($leadData);
+
+                Event::dispatch('lead.create.after', $lead);
+
+                // Ensure person-organization relationship is established
+                if ($organizationId && $lead->person) {
+                    // Update the person to ensure organization_id is set
+                    $this->personRepository->update([
+                        'organization_id' => $organizationId
+                    ], $lead->person->id);
+                    
+                    \Log::info('Person linked to organization', [
+                        'person_id' => $lead->person->id,
+                        'organization_id' => $organizationId
+                    ]);
+                }
+
+                $leads[] = $lead;
+
+                \Log::info('Lead created successfully', [
+                    'lead_id' => $lead->id,
+                    'person_name' => $rawLead['person']['name'],
+                    'organization_id' => $organizationId
+                ]);
+
+            } catch (\Exception $e) {
+                \Log::error('Failed to create lead at row ' . ($index + 1), [
+                    'error' => $e->getMessage(),
+                    'lead_data' => $rawLead,
+                    'trace' => $e->getTraceAsString()
+                ]);
+                
+                $skippedErrors[] = [
+                    'row' => $index + 1,
+                    'name' => $rawLead['person']['name'] ?? 'Unknown',
+                    'reason' => 'creation error: ' . $e->getMessage()
+                ];
+                continue;
+            }
+        }
+
+        return [
+            'leads' => $leads,
+            'created_count' => count($leads),
+            'duplicate_count' => count($skippedDuplicates),
+            'error_count' => count($skippedErrors),
+            'total_processed' => count($rawLeads),
+            'duplicate_details' => $skippedDuplicates,
+            'error_details' => $skippedErrors
+        ];
+    }
+
+    /**
+     * Create or find organization and return its ID
+     */
+    private function createOrFindOrganization($organizationName, $addressData): ?int
+    {
+        try {
+            // Check if organization already exists
+            $organization = $this->organizationRepository->where('name', $organizationName)->first();
+            
+            if ($organization) {
+                \Log::info('Using existing organization', ['id' => $organization->id, 'name' => $organizationName]);
+                return $organization->id;
+            }
+
+            // Create new organization with address data
+            $organizationData = [
+                'name' => $organizationName,
+                'entity_type' => 'organizations'
+            ];
+
+            // Add address data if provided
+            if (!empty($addressData['country']) || !empty($addressData['state'])) {
+                $address = [];
+                if (!empty($addressData['country'])) $address['country'] = $addressData['country'];
+                if (!empty($addressData['state'])) $address['state'] = $addressData['state'];
+                $organizationData['address'] = $address;
+            }
+
+            // Temporarily set entity_type for organization creation
+            $originalEntityType = request()->get('entity_type');
+            request()->merge(['entity_type' => 'organizations']);
+
+            $organization = $this->organizationRepository->create($organizationData);
+
+            // Restore original entity_type
+            request()->merge(['entity_type' => $originalEntityType]);
+
+            \Log::info('Created new organization', [
+                'id' => $organization->id, 
+                'name' => $organizationName,
+                'address' => $organizationData['address'] ?? null
+            ]);
+            
+            return $organization->id;
+        } catch (\Exception $e) {
+            \Log::error('Failed to create/find organization', [
+                'name' => $organizationName,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
     }
 }

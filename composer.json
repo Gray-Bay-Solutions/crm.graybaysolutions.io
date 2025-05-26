@@ -22,6 +22,7 @@
         "laravel/ui": "^4.5",
         "maatwebsite/excel": "^3.1",
         "mpdf/mpdf": "^8.2",
+        "phpoffice/phpspreadsheet": "^1.29",
         "prettus/l5-repository": "^2.7.9",
         "smalot/pdfparser": "^2.11",
         "webklex/laravel-imap": "^5.3"

@@ -16,6 +16,8 @@ Route::controller(LeadController::class)->prefix('leads')->group(function () {
 
     Route::post('create-by-ai', 'createByAI')->name('admin.leads.create_by_ai');
 
+    Route::post('bulk-upload', 'bulkUpload')->name('admin.leads.bulk_upload');
+
     Route::get('view/{id}', 'view')->name('admin.leads.view');
 
     Route::get('edit/{id}', 'edit')->name('admin.leads.edit');
