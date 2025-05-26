@@ -60,7 +60,8 @@ class LeadController extends Controller
         protected LeadRepository $leadRepository,
         protected ProductRepository $productRepository,
         protected PersonRepository $personRepository,
-        protected OrganizationRepository $organizationRepository
+        protected OrganizationRepository $organizationRepository,
+        protected TagRepository $tagRepository
     ) {
         request()->request->add(['entity_type' => 'leads']);
     }
@@ -928,6 +929,21 @@ class LeadController extends Controller
 
                 Event::dispatch('lead.create.after', $lead);
 
+                // Attach industry category as tag if available
+                if (!empty($rawLead['industry_category'])) {
+                    $tagId = $this->createOrFindTag($rawLead['industry_category']);
+                    
+                    if ($tagId && !$lead->tags->contains($tagId)) {
+                        $lead->tags()->attach($tagId);
+                        
+                        \Log::info('Tag attached to lead', [
+                            'lead_id' => $lead->id,
+                            'tag_id' => $tagId,
+                            'tag_name' => $rawLead['industry_category']
+                        ]);
+                    }
+                }
+
                 // Ensure person-organization relationship is established
                 if ($organizationId && $lead->person) {
                     // Update the person to ensure organization_id is set
@@ -1023,6 +1039,58 @@ class LeadController extends Controller
         } catch (\Exception $e) {
             \Log::error('Failed to create/find organization', [
                 'name' => $organizationName,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Create or find tag by name and return its ID
+     */
+    private function createOrFindTag($tagName): ?int
+    {
+        try {
+            // Skip if tag name is empty
+            if (empty($tagName)) {
+                return null;
+            }
+
+            // Check if tag already exists
+            $tag = $this->tagRepository->where('name', $tagName)->first();
+            
+            if ($tag) {
+                \Log::info('Using existing tag', ['id' => $tag->id, 'name' => $tagName]);
+                return $tag->id;
+            }
+
+            // Create new tag with random color
+            $colors = [
+                '#DC2626', // aquarelle-red
+                '#EA580C', // crushed-cashew
+                '#D97706', // beeswax
+                '#CA8A04', // lemon-chiffon
+                '#65A30D', // snow-flurry
+                '#16A34A', // honeydew
+            ];
+
+            $tag = $this->tagRepository->create([
+                'name' => $tagName,
+                'color' => $colors[array_rand($colors)],
+                'user_id' => auth()->guard('user')->user()->id ?? 1, // Fallback to user ID 1 if no authenticated user
+            ]);
+
+            \Log::info('Created new tag', [
+                'id' => $tag->id, 
+                'name' => $tagName,
+                'color' => $tag->color
+            ]);
+            
+            return $tag->id;
+        } catch (\Exception $e) {
+            \Log::error('Failed to create/find tag', [
+                'name' => $tagName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
