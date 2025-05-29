@@ -47,7 +47,7 @@
                                 @if ($lead->person->organization)
                                     @lang('admin::app.leads.view.persons.job-title', [
                                         'job_title'    => $lead->person->job_title,
-                                        'organization' => $lead->person->organization->name
+                                        'organization' => '<a href="' . route('admin.contacts.organizations.edit', $lead->person->organization->id) . '" class="text-brandColor hover:underline" target="_blank">' . $lead->person->organization->name . '</a>'
                                     ])
                                 @else
                                     {{ $lead->person->job_title }}
@@ -60,7 +60,7 @@
                         {!! view_render_event('admin.leads.view.person.email.before', ['lead' => $lead]) !!}
         
                         @foreach ($lead->person->emails as $email)
-                            <div class="flex gap-1">
+                            <div class="flex items-center gap-2">
                                 <a 
                                     class="text-brandColor"
                                     href="mailto:{{ $email['value'] }}"
@@ -71,6 +71,13 @@
                                 <span class="text-gray-500 dark:text-gray-300">
                                     ({{ $email['label'] }})
                                 </span>
+
+                                <button
+                                    type="button"
+                                    class="icon-copy text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
+                                    onclick="copyToClipboard('{{ $email['value'] }}', this)"
+                                    title="Copy email"
+                                ></button>
                             </div>
                         @endforeach
         
@@ -79,7 +86,7 @@
                         {!! view_render_event('admin.leads.view.person.contact_numbers.before', ['lead' => $lead]) !!}
                     
                         @foreach ($lead->person->contact_numbers as $contactNumber)
-                            <div class="flex gap-1">
+                            <div class="flex items-center gap-2">
                                 <a  
                                     class="text-brandColor"
                                     href="callto:{{ $contactNumber['value'] }}"
@@ -90,6 +97,13 @@
                                 <span class="text-gray-500 dark:text-gray-300">
                                     ({{ $contactNumber['label'] }})
                                 </span>
+
+                                <button
+                                    type="button"
+                                    class="icon-copy text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
+                                    onclick="copyToClipboard('{{ $contactNumber['value'] }}', this)"
+                                    title="Copy phone number"
+                                ></button>
                             </div>
                         @endforeach
         
@@ -99,5 +113,43 @@
             </x-slot>
         </x-admin::accordion>
     </div>
+
+    @pushOnce('scripts')
+        <script>
+            function copyToClipboard(text, button) {
+                navigator.clipboard.writeText(text).then(function() {
+                    // Change icon to checkmark temporarily
+                    const originalClass = button.className;
+                    button.className = button.className.replace('icon-copy', 'icon-check');
+                    button.style.color = '#10B981'; // green color
+                    
+                    // Reset after 2 seconds
+                    setTimeout(function() {
+                        button.className = originalClass;
+                        button.style.color = '';
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Failed to copy text: ', err);
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    // Show feedback
+                    const originalClass = button.className;
+                    button.className = button.className.replace('icon-copy', 'icon-check');
+                    button.style.color = '#10B981';
+                    
+                    setTimeout(function() {
+                        button.className = originalClass;
+                        button.style.color = '';
+                    }, 2000);
+                });
+            }
+        </script>
+    @endPushOnce
 @endif
 {!! view_render_event('admin.leads.view.person.after', ['lead' => $lead]) !!}

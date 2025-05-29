@@ -83,6 +83,9 @@
 
             <!-- Contact Organization -->
             @include ('admin::contacts.persons.view.organization')
+
+            <!-- Associated Leads -->
+            @include ('admin::contacts.persons.view.leads')
         </div>
 
         {!! view_render_event('admin.contact.persons.view.left.after', ['person' => $person]) !!}

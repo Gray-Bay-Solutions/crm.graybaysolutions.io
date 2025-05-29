@@ -40,6 +40,8 @@ class Lead extends Model implements LeadContract
     protected $fillable = [
         'title',
         'description',
+        'github_repo_url',
+        'vercel_url',
         'lead_value',
         'status',
         'lost_reason',

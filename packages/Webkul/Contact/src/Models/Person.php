@@ -90,6 +90,14 @@ class Person extends Model implements PersonContract
     }
 
     /**
+     * Get the leads associated with the person.
+     */
+    public function leads()
+    {
+        return $this->hasMany(\Webkul\Lead\Models\LeadProxy::modelClass());
+    }
+
+    /**
      * Create a new factory instance for the model.
      *
      * @return \Illuminate\Database\Eloquent\Factories\Factory

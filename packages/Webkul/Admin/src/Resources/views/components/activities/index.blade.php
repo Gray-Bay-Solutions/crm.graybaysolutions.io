@@ -1,7 +1,7 @@
 @props([
     'endpoint',
     'emailDetachEndpoint' => null,
-    'activeType'          => 'all',
+    'activeType'          => 'description',
     'types'               => null,
     'extraTypes'          => null,
 ])
@@ -343,16 +343,16 @@
                             >
                                 <img
                                     class="dark:mix-blend-exclusion dark:invert"
-                                    :src="typeIllustrations[selectedType]?.image ?? typeIllustrations['all'].image"
+                                    :src="typeIllustrations[selectedType]?.image ?? typeIllustrations['system'].image"
                                 >
 
                                 <div class="flex flex-col items-center gap-2">
                                     <p class="text-xl font-semibold dark:text-white">
-                                        @{{ typeIllustrations[selectedType]?.title ?? typeIllustrations['all'].title }}
+                                        @{{ typeIllustrations[selectedType]?.title ?? typeIllustrations['system'].title }}
                                     </p>
 
                                     <p class="text-gray-400 dark:text-gray-400">
-                                        @{{ typeIllustrations[selectedType]?.description ?? typeIllustrations['all'].description }}
+                                        @{{ typeIllustrations[selectedType]?.description ?? typeIllustrations['system'].description }}
                                     </p>
                                 </div>
                             </div>
@@ -396,36 +396,27 @@
 
                 activeType: {
                     type: String,
-                    default: 'all',
+                    default: 'description',
                 },
 
                 types: {
                     type: Array,
                     default: [
                         {
-                            name: 'all',
-                            label: "{{ trans('admin::app.components.activities.index.all') }}",
-                        }, {
-                            name: 'planned',
-                            label: "{{ trans('admin::app.components.activities.index.planned') }}",
-                        }, {
-                            name: 'note',
-                            label: "{{ trans('admin::app.components.activities.index.notes') }}",
-                        }, {
                             name: 'call',
                             label: "{{ trans('admin::app.components.activities.index.calls') }}",
                         }, {
                             name: 'meeting',
                             label: "{{ trans('admin::app.components.activities.index.meetings') }}",
                         }, {
-                            name: 'lunch',
-                            label: "{{ trans('admin::app.components.activities.index.lunches') }}",
+                            name: 'email',
+                            label: "{{ trans('admin::app.components.activities.index.emails') }}",
+                        }, {
+                            name: 'note',
+                            label: "{{ trans('admin::app.components.activities.index.notes') }}",
                         }, {
                             name: 'file',
                             label: "{{ trans('admin::app.components.activities.index.files') }}",
-                        }, {
-                            name: 'email',
-                            label: "{{ trans('admin::app.components.activities.index.emails') }}",
                         }, {
                             name: 'system',
                             label: "{{ trans('admin::app.components.activities.index.change-log') }}",
@@ -454,25 +445,12 @@
                         note: 'icon-note bg-orange-200 text-orange-800 dark:!text-orange-800',
                         call: 'icon-call bg-cyan-200 text-cyan-800 dark:!text-cyan-800',
                         meeting: 'icon-activity bg-blue-200 text-blue-800 dark:!text-blue-800',
-                        lunch: 'icon-activity bg-blue-200 text-blue-800 dark:!text-blue-800',
                         file: 'icon-file bg-green-200 text-green-900 dark:!text-green-900',
                         system: 'icon-system-generate bg-yellow-200 text-yellow-900 dark:!text-yellow-900',
                         default: 'icon-activity bg-blue-200 text-blue-800 dark:!text-blue-800',
                     },
 
                     typeIllustrations: {
-                        all: {
-                            image: "{{ vite()->asset('images/empty-placeholders/activities.svg') }}",
-                            title: "{{ trans('admin::app.components.activities.index.empty-placeholders.all.title') }}",
-                            description: "{{ trans('admin::app.components.activities.index.empty-placeholders.all.description') }}",
-                        },
-
-                        planned: {
-                            image: "{{ vite()->asset('images/empty-placeholders/plans.svg') }}",
-                            title: "{{ trans('admin::app.components.activities.index.empty-placeholders.planned.title') }}",
-                            description: "{{ trans('admin::app.components.activities.index.empty-placeholders.planned.description') }}",
-                        },
-
                         note: {
                             image: "{{ vite()->asset('images/empty-placeholders/notes.svg') }}",
                             title: "{{ trans('admin::app.components.activities.index.empty-placeholders.notes.title') }}",
@@ -489,12 +467,6 @@
                             image: "{{ vite()->asset('images/empty-placeholders/meetings.svg') }}",
                             title: "{{ trans('admin::app.components.activities.index.empty-placeholders.meetings.title') }}",
                             description: "{{ trans('admin::app.components.activities.index.empty-placeholders.meetings.description') }}",
-                        },
-
-                        lunch: {
-                            image: "{{ vite()->asset('images/empty-placeholders/lunches.svg') }}",
-                            title: "{{ trans('admin::app.components.activities.index.empty-placeholders.lunches.title') }}",
-                            description: "{{ trans('admin::app.components.activities.index.empty-placeholders.lunches.description') }}",
                         },
 
                         file: {
@@ -522,12 +494,6 @@
 
             computed: {
                 filteredActivities() {
-                    if (this.selectedType == 'all') {
-                        return this.activities;
-                    } else if (this.selectedType == 'planned') {
-                        return this.activities.filter(activity => ! activity.is_done);
-                    }
-
                     return this.activities.filter(activity => activity.type == this.selectedType);
                 }
             },
@@ -537,7 +503,13 @@
 
                 if (this.extraTypes?.length) {
                     this.extraTypes.forEach(type => {
-                        this.types.push(type);
+                        // Insert "description" tab at the beginning (index 0)
+                        if (type.name === 'description') {
+                            this.types.unshift(type);
+                        } else {
+                            // Add other extra types at the end
+                            this.types.push(type);
+                        }
                     });
                 }
 

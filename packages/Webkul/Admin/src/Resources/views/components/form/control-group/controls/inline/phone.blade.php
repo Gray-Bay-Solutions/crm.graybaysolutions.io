@@ -26,12 +26,26 @@
                 :class="allowEdit ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : ''"
             >
                 <div 
-                    class="group relative !w-full pl-2.5"
+                    class="group relative !w-full pl-2.5 flex items-center gap-2"
                     :style="{ 'text-align': position }"
                 >
                     <span class="cursor-pointer truncate rounded">
                         @{{ valueLabel ? valueLabel : inputValue.map(item => `${item.value}(${item.label})`).join(', ').length > 20 ? inputValue.map(item => `${item.value}(${item.label})`).join(', ').substring(0, 20) + '...' : inputValue.map(item => `${item.value}(${item.label})`).join(', ') }}
                     </span>
+
+                    <!-- Copy buttons for each phone number -->
+                    <template v-if="inputValue && inputValue.length > 0">
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                v-for="(phone, index) in inputValue"
+                                :key="index"
+                                type="button"
+                                class="icon-copy text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer text-sm"
+                                @click="copyToClipboard(phone.value, $event.target)"
+                                :title="`Copy ${phone.value}`"
+                            ></button>
+                        </div>
+                    </template>
 
                     <div
                         class="absolute bottom-0 mb-5 hidden flex-col group-hover:flex"
@@ -314,7 +328,21 @@
                     this.$emit('on-save', params);
 
                     this.$refs.phoneNumberModal.toggle();
-                }
+                },
+
+                copyToClipboard(text, element) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        // Temporarily change icon to indicate success
+                        const originalClass = element.className;
+                        element.className = element.className.replace('icon-copy', 'icon-check');
+                        
+                        setTimeout(() => {
+                            element.className = originalClass;
+                        }, 1000);
+                    }).catch(err => {
+                        console.error('Failed to copy: ', err);
+                    });
+                },
             },
         });
     </script>

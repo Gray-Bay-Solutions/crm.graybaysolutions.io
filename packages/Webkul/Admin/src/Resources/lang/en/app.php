@@ -153,6 +153,14 @@ return [
                         'no-results'  => 'No result found...',
                     ],
                 ],
+
+                'landing-page' => [
+                    'btn'               => 'Generate Website',
+                    'title'             => 'Generate Website',
+                    'google-maps-link'  => 'Google Maps Link',
+                    'generating-btn'    => 'Generating...',
+                    'generate-btn'      => 'Generate Website',
+                ],
             ],
 
             'index' => [
@@ -565,6 +573,11 @@ return [
                 'title'              => ':name',
                 'about-person'       => 'About Person',
                 'about-organization' => 'About Organization',
+                'leads'              => 'Leads',
+
+                'leads' => [
+                    'title' => 'Leads',
+                ],
 
                 'activities' => [
                     'index' => [
@@ -2067,6 +2080,10 @@ return [
                 'job-title' => ':job_title at :organization',
             ],
 
+            'organizations' => [
+                'title' => 'About Organization',
+            ],
+
             'stages' => [
                 'won-lost'       => 'Won/Lost',
                 'won'            => 'Won',
@@ -2287,7 +2304,7 @@ return [
         'product'              => 'Product',
         'settings'             => 'Settings',
         'user'                 => 'User',
-        'user-info'            => 'Manage all your users and their permissions in the CRM, what they’re allowed to do.',
+        'user-info'            => 'Manage all your users and their permissions in the CRM, what they\'re allowed to do.',
         'groups'               => 'Groups',
         'groups-info'          => 'Add, edit or delete groups from CRM',
         'roles'                => 'Roles',

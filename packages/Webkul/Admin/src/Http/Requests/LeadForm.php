@@ -140,6 +140,8 @@ class LeadForm extends FormRequest
             'products.*.name'       => 'required_with:products.*.product_id',
             'products.*.price'      => 'required_with:products.*.product_id',
             'products.*.quantity'   => 'required_with:products.*.product_id',
+            'github_repo_url'       => 'nullable|url',
+            'vercel_url'            => 'nullable|url',
         ];
     }
 
@@ -153,6 +155,8 @@ class LeadForm extends FormRequest
             'products.*.name.required_with'     => trans('admin::app.leads.product-name-required'),
             'products.*.price.required_with'    => trans('admin::app.leads.product-price-required'),
             'products.*.quantity.required_with' => trans('admin::app.leads.product-quantity-required'),
+            'github_repo_url.url'               => 'The GitHub repository URL must be a valid URL.',
+            'vercel_url.url'                    => 'The live website URL must be a valid URL.',
         ];
     }
 }
