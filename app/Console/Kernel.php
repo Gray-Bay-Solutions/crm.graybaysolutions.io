@@ -13,6 +13,13 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('inbound-emails:process')->everyFiveMinutes();
+        
+        // Send lead follow-up reminders daily on business days (Monday-Friday)
+        $schedule->command('leads:send-follow-up-reminders')
+            ->dailyAt('09:00')
+            ->weekdays()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**
