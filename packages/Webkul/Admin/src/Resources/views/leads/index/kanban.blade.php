@@ -145,19 +145,28 @@
                                             </div>
                                         </div>
 
-                                        <div
-                                            class="group relative"
-                                            v-if="element.rotten_days > 0"
-                                        >
-                                            <span class="icon-rotten cursor-default text-xl text-rose-600"></span>
+                                        <div class="flex items-center gap-1">
+                                            <div
+                                                class="group relative"
+                                                v-if="element.rotten_days > 0"
+                                            >
+                                                <span class="icon-rotten cursor-default text-xl text-rose-600"></span>
 
-                                            <div class="absolute -top-1 right-7 hidden w-max flex-col items-center group-hover:flex">
-                                                <span class="whitespace-no-wrap relative rounded-md bg-black px-4 py-2 text-xs leading-none text-white shadow-lg">
-                                                    @{{ "@lang('admin::app.leads.index.kanban.rotten-days', ['days' => 'replaceDays'])".replace('replaceDays', element.rotten_days) }}
-                                                </span>
+                                                <div class="absolute -top-1 right-7 hidden w-max flex-col items-center group-hover:flex">
+                                                    <span class="whitespace-no-wrap relative rounded-md bg-black px-4 py-2 text-xs leading-none text-white shadow-lg">
+                                                        @{{ "@lang('admin::app.leads.index.kanban.rotten-days', ['days' => 'replaceDays'])".replace('replaceDays', element.rotten_days) }}
+                                                    </span>
 
-                                                <div class="absolute -right-1 top-2 h-3 w-3 rotate-45 bg-black"></div>
+                                                    <div class="absolute -right-1 top-2 h-3 w-3 rotate-45 bg-black"></div>
+                                                </div>
                                             </div>
+
+                                            @if (bouncer()->hasPermission('leads.delete'))
+                                                <span 
+                                                    class="icon-delete cursor-pointer rounded-md p-1.5 text-xl transition-all hover:bg-gray-200 dark:hover:bg-gray-950"
+                                                    @click.prevent="removeLead(element)"
+                                                ></span>
+                                            @endif
                                         </div>
                                     </div>
 
@@ -574,6 +583,39 @@
                         this.getKanbansStorageKey(),
                         JSON.stringify(kanbans)
                     );
+                },
+
+                /**
+                 * Remove lead.
+                 */
+                removeLead(lead) {
+                    this.$emitter.emit('open-confirm-modal', {
+                        agree: () => {
+                            this.$axios.delete(`{{ route('admin.leads.delete', '') }}/${lead.id}`)
+                                .then(response => {
+                                    // Add defensive checks
+                                    const stage = this.stageLeads[lead.lead_pipeline_stage_id];
+                                    if (stage && stage.leads && Array.isArray(stage.leads.data)) {
+                                        const index = stage.leads.data.indexOf(lead);
+
+                                        if (index !== -1) {
+                                            stage.leads.data.splice(index, 1);
+                                            stage.leads.meta.total--;
+                                        }
+                                    }
+
+                                    this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
+                                    
+                                    // Set timeout for 3 seconds before refreshing
+                                    setTimeout(() => {
+                                        window.location.reload();
+                                    }, 3000);
+                                })
+                                .catch(error => {
+                                    this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
+                                });
+                        }
+                    });
                 },
             }
         });
