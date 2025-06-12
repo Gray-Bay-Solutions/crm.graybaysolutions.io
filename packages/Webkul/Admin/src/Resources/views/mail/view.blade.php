@@ -531,22 +531,24 @@
 
                                     <!-- Emails -->
                                     <template v-for="email in email?.person?.emails.map(item => item.value)">
-                                        <a
-                                            class="text-brandColor"
-                                            :href="`mailto:${email}`"
+                                        <button
+                                            type="button"
+                                            class="text-brandColor text-left"
+                                            @click="copyToClipboard(email)"
                                         >
                                             @{{ email }}
-                                        </a>
+                                        </button>
                                     </template>
 
                                     <!-- Contact Numbers -->
                                     <template v-for="contactNumber in email.person?.contact_numbers.map(item => item.value)">
-                                        <a
-                                            class="text-brandColor"
-                                            :href="`tel:${contactNumber}`"
+                                        <button
+                                            type="button"
+                                            class="text-brandColor text-left"
+                                            @click="copyToClipboard(contactNumber)"
                                         >
                                             @{{ contactNumber }}
-                                        </a>
+                                        </button>
                                     </template>
                                 </div>
                             </div>
@@ -1580,6 +1582,16 @@
 
                         this.$emit('open-contact-modal');
                     },
+
+                    copyToClipboard(text) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            // Show flash message using the global app instance
+                            app.$emitter.emit('add-flash', { 
+                                type: 'success', 
+                                message: text.includes('@') ? 'Email copied to clipboard!' : 'Phone number copied to clipboard!' 
+                            });
+                        });
+                    },
                 },
             });
         </script>
@@ -1977,7 +1989,32 @@
                     openLeadModal() {
                         this.$refs.createLead.$refs.leadModal.open();
                     },
+
+                    copyToClipboard(text) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            // Show flash message using the global app instance
+                            app.$emitter.emit('add-flash', { 
+                                type: 'success', 
+                                message: text.includes('@') ? 'Email copied to clipboard!' : 'Phone number copied to clipboard!' 
+                            });
+                        });
+                    },
                 },
+            });
+        </script>
+
+        <script>
+            // Wait for the Vue app to be mounted
+            window.addEventListener('load', function() {
+                function copyToClipboard(text) {
+                    navigator.clipboard.writeText(text).then(function() {
+                        // Show flash message using the global emitter
+                        window.emitter.emit('add-flash', { type: 'success', message: 'Email copied to clipboard!' });
+                    });
+                }
+
+                // Make the function globally available
+                window.copyToClipboard = copyToClipboard;
             });
         </script>
     @endPushOnce

@@ -29,13 +29,13 @@
                     class="group relative !w-full pl-2.5 flex items-center gap-2"
                     :style="{ 'text-align': position }"
                 >
-                    <span class="cursor-pointer truncate rounded">
+                    <span class="truncate rounded">
                         @{{ valueLabel ? valueLabel : inputValue?.map(item => `${item.value}(${item.label})`).join(', ').length > 20 ? inputValue?.map(item => `${item.value}(${item.label})`).join(', ').substring(0, 20) + '...' : inputValue?.map(item => `${item.value}(${item.label})`).join(', ') }}
                     </span>
 
                     <!-- Copy buttons for each email -->
                     <template v-if="inputValue && inputValue.length > 0">
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="flex gap-1 transition-opacity">
                             <button
                                 v-for="(email, index) in inputValue"
                                 :key="index"
@@ -335,11 +335,17 @@
                         const originalClass = element.className;
                         element.className = element.className.replace('icon-copy', 'icon-check');
                         
+                        // Show flash message
+                        this.$emitter.emit('add-flash', { type: 'success', message: 'Email copied to clipboard!' });
+                        
                         setTimeout(() => {
                             element.className = originalClass;
                         }, 1000);
                     }).catch(err => {
                         console.error('Failed to copy: ', err);
+                        
+                        // Show error flash message
+                        this.$emitter.emit('add-flash', { type: 'error', message: 'Failed to copy email' });
                     });
                 },
             },

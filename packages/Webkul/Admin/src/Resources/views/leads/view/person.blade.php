@@ -61,12 +61,13 @@
         
                         @foreach ($lead->person->emails as $email)
                             <div class="flex items-center gap-2">
-                                <a 
-                                    class="text-brandColor"
-                                    href="mailto:{{ $email['value'] }}"
+                                <button 
+                                    type="button"
+                                    class="text-brandColor text-left"
+                                    onclick="copyToClipboard('{{ $email['value'] }}', this.nextElementSibling.nextElementSibling)"
                                 >
                                     {{ $email['value'] }}
-                                </a>
+                                </button>
         
                                 <span class="text-gray-500 dark:text-gray-300">
                                     ({{ $email['label'] }})
@@ -116,39 +117,29 @@
 
     @pushOnce('scripts')
         <script>
-            function copyToClipboard(text, button) {
-                navigator.clipboard.writeText(text).then(function() {
-                    // Change icon to checkmark temporarily
-                    const originalClass = button.className;
-                    button.className = button.className.replace('icon-copy', 'icon-check');
-                    button.style.color = '#10B981'; // green color
-                    
-                    // Reset after 2 seconds
-                    setTimeout(function() {
-                        button.className = originalClass;
-                        button.style.color = '';
-                    }, 2000);
-                }).catch(function(err) {
-                    console.error('Failed to copy text: ', err);
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    
-                    // Show feedback
-                    const originalClass = button.className;
-                    button.className = button.className.replace('icon-copy', 'icon-check');
-                    button.style.color = '#10B981';
-                    
-                    setTimeout(function() {
-                        button.className = originalClass;
-                        button.style.color = '';
-                    }, 2000);
-                });
-            }
+            // Wait for the Vue app to be mounted
+            window.addEventListener('load', function() {
+                function copyToClipboard(text, button) {
+                    navigator.clipboard.writeText(text).then(function() {
+                        // Change icon to checkmark temporarily
+                        const originalClass = button.className;
+                        button.className = button.className.replace('icon-copy', 'icon-check');
+                        button.style.color = '#10B981'; // green color
+                        
+                        // Show flash message using the global emitter
+                        window.emitter.emit('add-flash', { type: 'success', message: text.includes('@') ? 'Email copied to clipboard!' : 'Phone number copied to clipboard!' });
+                        
+                        // Reset after 2 seconds
+                        setTimeout(function() {
+                            button.className = originalClass;
+                            button.style.color = ''; // reset color
+                        }, 2000);
+                    });
+                }
+
+                // Make the function globally available
+                window.copyToClipboard = copyToClipboard;
+            });
         </script>
     @endPushOnce
 @endif
